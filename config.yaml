@@ -1,0 +1,4 @@
+volume_name: /home/guadirla/BASF/funcional_annotation
+fasta_file: file1.Col-PEK1.5_Chr1-5_20220523.fasta
+final_filtering_gff: Arath2.v2.gff
+multiloc_script: ml2_one_by_one.sh
