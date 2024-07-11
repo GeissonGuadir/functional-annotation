@@ -13,29 +13,12 @@ def main():
     ncbi_dict = defaultdict(list)
     uniref_dict = defaultdict(list)
     signalp_dict = defaultdict(list)
-    location_dict = defaultdict(dict)
     ipr_dict = defaultdict(set)
     go_dict = defaultdict(set)
     hmmer_dict = defaultdict(list)
+    multiloc_dict = defaultdict(list)
     targetp_dict = defaultdict(str)
     ncbi_description_dict = {}
-
-    # List for multiloc
-    location_order = ['extracellular', 'ER', 'vacuolar', 'plasma membrane', 'Golgi apparatus', 'cytoplasmic', 'peroxisomal', 'mitochondrial', 'nuclear', 'chloroplast']
-
-    # Location mapping
-    location_mapping = {
-        'extracellular': 'e',
-        'ER': 'ER',
-        'vacuolar': 'v',
-        'plasma membrane': 'pm',
-        'Golgi apparatus': 'Ga',
-        'cytoplasmic': 'cy',
-        'peroxisomal': 'p',
-        'mitochondrial': 'm',
-        'nuclear': 'n',
-        'chloroplast': 'ch'
-    }
 
     # Collect all unique genes
     all_genes = set()
@@ -86,12 +69,11 @@ def main():
     print("Processing MultiLoc data...")
     with open(file_paths['multiloc'], 'r') as multiloc:
         for line in multiloc:
-            gene, *locations = line.strip().split('\t')
-            all_genes.add(gene)
-            for location in locations:
-                if ':' in location:
-                    name, value = location.split(':')
-                    location_dict[gene][name.strip()] = value.strip()
+            if not line.startswith('/t'):
+                fields = line.strip().split()
+                gene = fields[0]
+                multiloc_dict[gene] = fields[1] + fields[2]
+                all_genes.add(gene)
 
     # SignalP
     print("Processing SignalP data...")
@@ -123,9 +105,9 @@ def main():
                     gene = fields[0]
                     all_genes.add(gene)
                     if file_path == file_paths['ncbi']:
-                        ncbi_dict[gene] = [fields[1], fields[11]]
+                        ncbi_dict[gene] = [fields[1], fields[10], fields[11]]
                     else:
-                        uniref_dict[gene] = [fields[1], fields[11]]
+                        uniref_dict[gene] = [fields[1], fields[10], fields[11]]
 
     # hmmer
     print("Processing HMMER data...")
@@ -155,31 +137,28 @@ def main():
                         go = go_term
                         go_dict[gene].add(go)
 
-
-    print("Total genes collected:", len(all_genes))
-
     # Determine output file name
     output_file = os.path.join(args.output_dir, os.path.basename(file_paths['ncbi']).replace('_ncbi_best_hit.out', '.tsv'))
     print("Writing results to:", output_file)
     with open(output_file, 'w', newline='') as outfile:
         writer = csv.writer(outfile, delimiter='\t')
 
-        header = ["ID sequence", "NCBI DESCRIPTION", "NCBI Subject; Bit score", "Uniref Subject; Bit score", "SignalP Pos; Pr", "TargetP Prediction; noTP; SP; mTP; cTP; luTP; CS Position",
-                  "; ".join([location_mapping[name] for name in location_order]), "IPRSCAN GO", "IPRSCAN IPR", "Hmmer Pfam"]
+        header = ["ID sequence", "NCBI DESCRIPTION", "NCBI Subject; E-value; Bit score", "Uniref Subject; Bit score", "SignalP Pos; Pr", "TargetP Prediction; noTP; SP; mTP; cTP; luTP; CS Position",
+                  "MULTILOC", "IPRSCAN GO", "IPRSCAN IPR", "Hmmer Pfam"]
         writer.writerow(header)
 
         for gene in all_genes:
-            results = [location_dict[gene].get(name, "N/A") for name in location_order]
 
             ncbi_values = ncbi_dict.get(gene, ["N/A"])
+            multiloc_values = multiloc_dict.get(gene, ["N/A"])
             description = ncbi_description_dict.get(ncbi_values[0].split(';')[0], "Description not found")
 
             targetp_info = targetp_dict[gene].replace(' ', ';') if gene in targetp_dict else "N/A"
-            ipr_terms = ";".join(sorted(ipr_dict[gene]))
-            go_terms = ";".join(sorted(go_dict[gene]))
+            ipr_terms = ";".join(sorted(ipr_dict.get(gene, ["N/A"])))
+            go_terms = ";".join(sorted(go_dict.get(gene, ["N/A"])))
 
             row = [gene, description, ";".join(ncbi_values), ";".join(uniref_dict.get(gene, ["N/A"])),
-                   ";".join(signalp_dict.get(gene, ["N/A"])), targetp_info, ";".join(results), go_terms, ipr_terms, ";".join(hmmer_dict.get(gene, ["N/A"]))]
+                   ";".join(signalp_dict.get(gene, ["N/A"])), targetp_info, multiloc_values, go_terms, ipr_terms, ";".join(hmmer_dict.get(gene, ["N/A"]))]
             writer.writerow(row)
 
 if __name__ == '__main__':
